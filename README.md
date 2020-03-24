@@ -3,14 +3,14 @@
 This document shows how to convert a STM32F103 Blue Pill to a Black Magic Probe gdb server. A Black Magic Probe (BMP) allows you to download firmware over USB, to set breakpoints, and inspect variables.
 
 ## Installing Firmware
-Download [blackmagic_bluepill.hex](https://github.com/koendv/blackmagic-bluepill/releases). Connect a STM32F103 Blue Pill for serial upload:
+Download [blackmagic_bluepill.bin](https://github.com/koendv/blackmagic-bluepill/releases). Connect a STM32F103 Blue Pill for serial upload:
 
 * Set boot jumpers for boot from rom: Boot0=1, Boot1=0. 
 * Connect a USB-Serial adapter with A9 to RX, A10 to TX. 
 * Press reset.
 * Upload the firmware: 
 ```
-stm32flash -w  blackmagic_bluepill.hex /dev/ttyUSB0
+stm32flash -w  blackmagic_bluepill.bin /dev/ttyUSB0
 ``` 
 with `/dev/ttyUSB0` the USB-serial adapter
 
@@ -165,9 +165,9 @@ With the DFU bootloader running,  we download the blackmagic firmware using DFU.
 
 If the `/dev/ttyBmpGdb` and `/dev/ttyBmpTarg` devices do not show up, check  `/etc/udev/rules.d/99-blackmagic.rules` has been installed.
 
-Make a backup copy of the firmware:
+Make a copy of the firmware in flash:
 ```
-stm32flash -r blackmagic_bluepill.hex /dev/ttyUSB0 
+stm32flash -r blackmagic_bluepill.bin /dev/ttyUSB0 
 ```
 ## See also
 [STM Discovery and Nucleo as Black Magic Probe](https://embdev.net/articles/STM_Discovery_and_Nucleo_as_Black_Magic_Probe#Building_Firmware_for_ST_Link_V2_Clones_and_Flash_Using_Two_Cheap_Clones)
