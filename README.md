@@ -8,7 +8,12 @@ Connect a STM32F103 Blue Pill for serial download:
 * Set boot jumpers for boot from rom: Boot0=1, Boot1=0. 
 * Connect a USB-Serial adapter with A9 to RX, A10 to TX. 
 * Press reset.
-* Upload the firmware: ```stm32flash -w  blackmagic_bluepill.hex /dev/ttyUSB0``` where `/dev/ttyUSB0` is the USB-serial adapter
+* Upload the firmware: 
+```
+stm32flash -w  blackmagic_bluepill.hex /dev/ttyUSB0
+``` 
+with `/dev/ttyUSB0` the USB-serial adapter
+
 * Set boot jumpers for boot from flash: Boot0=0, Boot1=0. 
 * Press reset.
 * Check the black magic probe shows up on usb: 
