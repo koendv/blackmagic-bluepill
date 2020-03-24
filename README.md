@@ -3,7 +3,7 @@
 This document shows how to convert a STM32F103 Blue Pill to a Black Magic Probe gdb server. A Black Magic Probe (BMP) allows you to download firmware over USB, to set breakpoints, and inspect variables.
 
 ## Installing Firmware
-Connect a STM32F103 Blue Pill for serial download:
+Download [blackmagic_bluepill.hex](https://github.com/koendv/blackmagic-bluepill/releases). Connect a STM32F103 Blue Pill for serial upload:
 
 * Set boot jumpers for boot from rom: Boot0=1, Boot1=0. 
 * Connect a USB-Serial adapter with A9 to RX, A10 to TX. 
