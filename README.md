@@ -11,25 +11,28 @@ Connect a STM32F103 Blue Pill for serial download:
 * Upload the firmware: ```stm32flash -w  blackmagic_bluepill.hex /dev/ttyUSB0``` where `/dev/ttyUSB0` is the USB-serial adapter
 * Set boot jumpers for boot from flash: Boot0=0, Boot1=0. 
 * Press reset.
-* Check device shows up on usb: ```$ lsusb
-Bus 001 Device 044: ID 1d50:6018 OpenMoko, Inc. Black Magic Debug Probe (Application)```
+* Check the black magic probe shows up on usb: 
+```
+$ lsusb
+Bus 001 Device 044: ID 1d50:6018 OpenMoko, Inc. Black Magic Debug Probe (Application)
+```
 
 ## Creating Device Files
 
 Download the [udev rules for the BMP](https://github.com/blacksphere/blackmagic/blob/master/driver/99-blackmagic.rules) and install them in 
  `/etc/udev/rules.d/99-blackmagic.rules`: 
  
- ```
+```
 $ wget https://github.com/blacksphere/blackmagic/raw/master/driver/99-blackmagic.rules
 $ sudo cp 99-blackmagic.rules /etc/udev/rules.d/
 $ sudo chown root:root /etc/udev/rules.d/99-blackmagic.rules 
 $ sudo chmod 644 /etc/udev/rules.d/99-blackmagic.rules 
 $ sudo udevadm control --reload-rules
- ```
- Disconnect and re-connect the BMP. Check the device shows up in `/dev/`:
+```
+Disconnect and re-connect the BMP. Check the device shows up in `/dev/`:
  
 ```
- $  ls -l /dev/ttyBmp*
+$ ls -l /dev/ttyBmp*
 lrwxrwxrwx 1 root root 7 Mar 24 11:59 /dev/ttyBmpGdb -> ttyACM0
 lrwxrwxrwx 1 root root 7 Mar 24 11:59 /dev/ttyBmpTarg -> ttyACM1
 ```
@@ -72,7 +75,7 @@ The commands `stm32flash`, `dfu-util`, and `arm-none-eabi-gdb` can be found unde
 The rest of this document documents how to compile the `blackmagic_bluepill.hex` firmware.
 
 ## Compiling Firmware
-The text assumes a Raspberry Pi with `stm32flash`, `dfu-util`,  `arm-none-eabi-gcc` and `arm-none-eabi-gdb` available.
+The text assumes a linux with `stm32flash`, `dfu-util`,  `arm-none-eabi-gcc` and `arm-none-eabi-gdb` available.
 
 Install [udev rules for the BMP](https://github.com/blacksphere/blackmagic/blob/master/driver/99-blackmagic.rules). Go to `~/.arduino15/packages/STM32/tools/STM32Tools/1.3.2/tools/linux/` and run `./install.sh`
 
