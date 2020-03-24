@@ -3,6 +3,47 @@
 This document shows how to convert a STM32F103 Blue Pill to a Black Magic Probe gdb server. A Black Magic Probe (BMP) allows you to download firmware over USB, to set breakpoints, and inspect variables.
 
 ## Installing firmware
+Connect a STM32F103 Blue Pill for serial download:
+
+* Set boot jumpers for boot from rom: Boot0=1, Boot1=0. 
+* Connect a USB-Serial adapter with A9 to RX, A10 to TX. 
+* Press reset.
+* Upload the firmware: ```stm32flash -w  blackmagic_bluepill.hex /dev/ttyUSB0``` where `/dev/ttyUSB0` is the USB-serial adapter
+* Set boot jumpers for boot from flash: Boot0=0, Boot1=0. 
+* Press reset.
+* Check device shows up on usb: ```$ lsusb
+Bus 001 Device 044: ID 1d50:6018 OpenMoko, Inc. Black Magic Debug Probe (Application)```
+
+## Connecting to target
+
+As target system we use another Blue Pill. Connect BMP and target like this:
+
+Black Magic Probe  | Target  | Comment
+--- | --- | ---
+`GND` | `GND` |
+`PB14` | `SWDIO` |
+`PA5` | `SWCLK` |
+`PA3` | `RXD` | Optional serial port
+`PA2` | `TXD` | Optional serial port
+`3V3` | `3V3` | Careful! Only connect one power source.
+
+Connect the Black Magic Probe USB to the Raspberry.  Now we are ready to connect to the target system.
+	
+	$ arm-none-eabi-gdb -ex "target extended-remote /dev/ttyBmpGdb"
+	...
+	Remote debugging using /dev/ttyBmpGdb
+	(gdb) monitor swdp
+	Target voltage: unknown
+	Available Targets:
+	No. Att Driver
+	 1      STM32F1 medium density M3/M4
+	(gdb)
+
+See the [overview of useful gdb commands](https://github.com/blacksphere/blackmagic/wiki/Useful-GDB-commands) for an  introduction in using the BMP.
+
+In the Arduino IDE, choose *Tools->Upload Method-> BMP (Black Magic Probe)* to upload firmware using the BMP. 
+
+## Compiling Firmware
 The text assumes a Raspberry Pi with `stm32flash`, `dfu-util`,  `arm-none-eabi-gcc` and `arm-none-eabi-gdb` available.
 
 Install [udev rules for the BMP](https://github.com/blacksphere/blackmagic/blob/master/driver/99-blackmagic.rules). Go to `~/.arduino15/packages/STM32/tools/STM32Tools/1.3.2/tools/linux/` and run `./install.sh`
@@ -87,6 +128,11 @@ With the DFU bootloader running,  we download the blackmagic firmware using DFU.
 	lrwxrwxrwx 1 root root 7 Mar  9 19:53 /dev/ttyBmpTarg -> ttyACM1
 
 If the `/dev/ttyBmpGdb` and `/dev/ttyBmpTarg` devices do not show up, check  `/etc/udev/rules.d/99-blackmagic.rules` has been installed.
+
+Make a backup copy of the firmware:
+```
+stm32flash -r blackmagic_bluepill.hex /dev/ttyUSB0 
+```
 
 ## Connecting to target
 
