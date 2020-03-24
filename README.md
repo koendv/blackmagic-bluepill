@@ -2,7 +2,7 @@
 
 This document shows how to convert a STM32F103 Blue Pill to a Black Magic Probe gdb server. A Black Magic Probe (BMP) allows you to download firmware over USB, to set breakpoints, and inspect variables.
 
-## Installing firmware
+## Installing Firmware
 Connect a STM32F103 Blue Pill for serial download:
 
 * Set boot jumpers for boot from rom: Boot0=1, Boot1=0. 
@@ -14,6 +14,26 @@ Connect a STM32F103 Blue Pill for serial download:
 * Check device shows up on usb: ```$ lsusb
 Bus 001 Device 044: ID 1d50:6018 OpenMoko, Inc. Black Magic Debug Probe (Application)```
 
+## Creating Device Files
+
+Download the [udev rules for the BMP](https://github.com/blacksphere/blackmagic/blob/master/driver/99-blackmagic.rules) and install them in 
+ `/etc/udev/rules.d/99-blackmagic.rules`: 
+ 
+ ```
+$ wget https://github.com/blacksphere/blackmagic/raw/master/driver/99-blackmagic.rules
+$ sudo cp 99-blackmagic.rules /etc/udev/rules.d/
+$ sudo chown root:root /etc/udev/rules.d/99-blackmagic.rules 
+$ sudo chmod 644 /etc/udev/rules.d/99-blackmagic.rules 
+$ sudo udevadm control --reload-rules
+ ```
+ Disconnect and re-connect the BMP. Check the device shows up in `/dev/`:
+ 
+```
+ $  ls -l /dev/ttyBmp*
+lrwxrwxrwx 1 root root 7 Mar 24 11:59 /dev/ttyBmpGdb -> ttyACM0
+lrwxrwxrwx 1 root root 7 Mar 24 11:59 /dev/ttyBmpTarg -> ttyACM1
+```
+ 
 ## Connecting to target
 
 As target system we use another Blue Pill. Connect BMP and target like this:
@@ -39,9 +59,17 @@ Connect the Black Magic Probe USB to the Raspberry.  Now we are ready to connect
 	 1      STM32F1 medium density M3/M4
 	(gdb)
 
-See the [overview of useful gdb commands](https://github.com/blacksphere/blackmagic/wiki/Useful-GDB-commands) for an  introduction in using the BMP.
+See the [overview of useful gdb commands](https://github.com/blacksphere/blackmagic/wiki/Useful-GDB-commands) for an  introduction to using the BMP.
 
-In the Arduino IDE, choose *Tools->Upload Method-> BMP (Black Magic Probe)* to upload firmware using the BMP. 
+## stm32duino
+
+If you are using the Arduino IDE with the stm32duino add-on:
+
+In the Arduino IDE, choose *Tools->Upload Method-> BMP (Black Magic Probe)* to upload firmware using the BMP.  This uploads the firmware using the `arm-none-eabi-gdb` command. The command line options to  `arm-none-eabi-gdb` are in the *tools.bmp_upload* section of `.arduino15/packages/STM32/hardware/stm32/1.8.0/platform.txt`.
+
+The commands `stm32flash`, `dfu-util`, and `arm-none-eabi-gdb` can be found under `~/.arduino15`. ```find ~/.arduino15/ -name arm-none-eabi-gdb -print```
+
+The rest of this document documents how to compile the `blackmagic_bluepill.hex` firmware.
 
 ## Compiling Firmware
 The text assumes a Raspberry Pi with `stm32flash`, `dfu-util`,  `arm-none-eabi-gcc` and `arm-none-eabi-gdb` available.
@@ -133,52 +161,6 @@ Make a backup copy of the firmware:
 ```
 stm32flash -r blackmagic_bluepill.hex /dev/ttyUSB0 
 ```
-
-## Connecting to target
-
-As target system we use another Blue Pill. Connect BMP and target like this:
-
-Black Magic Probe  | Target  | Comment
---- | --- | ---
-`GND` | `GND` |
-`PB14` | `SWDIO` |
-`PA5` | `SWCLK` |
-`PA3` | `RXD` | Optional serial port
-`PA2` | `TXD` | Optional serial port
-`3V3` | `3V3` | Careful! Only connect one power source.
-
-Connect the Black Magic Probe USB to the Raspberry.  Now we are ready to connect to the target system.
-	
-	$ arm-none-eabi-gdb -ex "target extended-remote /dev/ttyBmpGdb"
-	GNU gdb (xPack GNU Arm Embedded GCC, 32-bit) 8.3.0.20190709-git
-	Copyright (C) 2019 Free Software Foundation, Inc.
-	License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
-	This is free software: you are free to change and redistribute it.
-	There is NO WARRANTY, to the extent permitted by law.
-	Type "show copying" and "show warranty" for details.
-	This GDB was configured as "--host=armv8l-unknown-linux-gnueabihf --target=arm-none-eabi".
-	Type "show configuration" for configuration details.
-	For bug reporting instructions, please see:
-	<http://www.gnu.org/software/gdb/bugs/>.
-	Find the GDB manual and other documentation resources online at:
-	    <http://www.gnu.org/software/gdb/documentation/>.
-	
-	For help, type "help".
-	Type "apropos word" to search for commands related to "word".
-	Remote debugging using /dev/ttyBmpGdb
-	(gdb) monitor swdp
-	Target voltage: unknown
-	Available Targets:
-	No. Att Driver
-	 1      STM32F1 medium density M3/M4
-	(gdb)
-
-See the [overview of useful gdb commands](https://github.com/blacksphere/blackmagic/wiki/Useful-GDB-commands) for an  introduction in using the BMP.
-
-In the Arduino IDE, choose *Tools->Upload Method-> BMP (Black Magic Probe)* to upload firmware using the BMP. The command line options to  `arm-none-eabi-gdb` are in the *tools.bmp_upload* section of `.arduino15/packages/STM32/hardware/stm32/1.8.0/platform.txt`.
-
-Commands `stm32flash`, `dfu-util`, and `arm-none-eabi-gdb` can be found under `~/.arduino15`. Try  `find ~/.arduino15/ -name arm-none-eabi-gdb -print`
-
 ## See also
 [STM Discovery and Nucleo as Black Magic Probe](https://embdev.net/articles/STM_Discovery_and_Nucleo_as_Black_Magic_Probe#Building_Firmware_for_ST_Link_V2_Clones_and_Flash_Using_Two_Cheap_Clones)
 
