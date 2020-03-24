@@ -36,7 +36,7 @@ $ sudo udevadm control --reload-rules
 ```
 Disconnect and re-connect the BMP. Check the device shows up in `/dev/`:
  
-```
+ ```
 $ ls -l /dev/ttyBmp*
 lrwxrwxrwx 1 root root 7 Mar 24 11:59 /dev/ttyBmpGdb -> ttyACM0
 lrwxrwxrwx 1 root root 7 Mar 24 11:59 /dev/ttyBmpTarg -> ttyACM1
@@ -77,7 +77,7 @@ In the Arduino IDE, choose *Tools->Upload Method-> BMP (Black Magic Probe)* to u
 
 The commands `stm32flash`, `dfu-util`, and `arm-none-eabi-gdb` can be found under `~/.arduino15`. ```find ~/.arduino15/ -name arm-none-eabi-gdb -print```
 
-The rest of this document documents how to compile the `blackmagic_bluepill.hex` firmware.
+The rest of this document documents how to compile the `blackmagic_bluepill.bin` firmware.
 
 ## Compiling Firmware
 The text assumes a linux with `stm32flash`, `dfu-util`,  `arm-none-eabi-gcc` and `arm-none-eabi-gdb` available.
