@@ -1,0 +1,112 @@
+diff --git a/src/command.c b/src/command.c
+index dda2e8c..3609cec 100644
+--- a/src/command.c
++++ b/src/command.c
+@@ -79,7 +79,7 @@ const struct command_s cmd_list[] = {
+ #endif
+ #ifdef PLATFORM_HAS_TRACESWO
+ #if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
+-	{"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, NRZ mode: (baudrate)" },
++	{"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, NRZ mode: (baudrate) (decode)" },
+ #else
+ 	{"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, Manchester mode" },
+ #endif
+@@ -366,7 +366,8 @@ static bool cmd_traceswo(target *t, int argc, const char **argv)
+ #if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
+ 	if (argc > 1) {
+ 		uint32_t baudrate = atoi(argv[1]);
+-		traceswo_init(baudrate);
++		bool traceswo_decode = (argc > 2) || !strncmp(argv[2], "decode", strlen(argv[2]));
++		traceswo_init(baudrate, traceswo_decode);
+ 	} else {
+ 		gdb_outf("Missing baudrate parameter in command\n");
+ 	}
+diff --git a/src/platforms/common/traceswo.h b/src/platforms/common/traceswo.h
+index 50c9578..2841f35 100644
+--- a/src/platforms/common/traceswo.h
++++ b/src/platforms/common/traceswo.h
+@@ -23,7 +23,7 @@
+ #include <libopencm3/usb/usbd.h>
+ 
+ #if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
+-void traceswo_init(uint32_t baudrate);
++void traceswo_init(uint32_t baudrate, bool swo_decode);
+ #else
+ void traceswo_init(void);
+ #endif
+diff --git a/src/platforms/stlink/platform.h b/src/platforms/stlink/platform.h
+index 0ac91bb..78c81ce 100644
+--- a/src/platforms/stlink/platform.h
++++ b/src/platforms/stlink/platform.h
+@@ -71,6 +71,7 @@
+ #define PLATFORM_HAS_TRACESWO	1
+ #define NUM_TRACE_PACKETS		(128)		/* This is an 8K buffer */
+ #define TRACESWO_PROTOCOL		2			/* 1 = Manchester, 2 = NRZ / async */
++#define TRACESWO_DECODE
+ 
+ # define SWD_CR   GPIO_CRH(SWDIO_PORT)
+ # define SWD_CR_MULT (1 << ((14 - 8) << 2))
+diff --git a/src/platforms/stm32/traceswoasync.c b/src/platforms/stm32/traceswoasync.c
+index 94b07c3..d87a2dd 100644
+--- a/src/platforms/stm32/traceswoasync.c
++++ b/src/platforms/stm32/traceswoasync.c
+@@ -50,6 +50,11 @@ static volatile uint32_t r;	/* Packet currently waiting to transmit to USB */
+ static uint8_t trace_rx_buf[NUM_TRACE_PACKETS * FULL_SWO_PACKET];
+ /* Packet pingpong buffer used for receiving packets */
+ static uint8_t pingpong_buf[2 * FULL_SWO_PACKET];
++/* decoding swo packets */
++static bool swo_decode = false;
++static uint8_t swo_buf[CDCACM_PACKET_SIZE];
++static int swo_buf_len = 0;
++static int swo_pkt_len = 0;
+ 
+ void trace_buf_drain(usbd_device *dev, uint8_t ep)
+ {
+@@ -59,7 +64,31 @@ void trace_buf_drain(usbd_device *dev, uint8_t ep)
+ 	if (__atomic_test_and_set (&inBufDrain, __ATOMIC_RELAXED))
+ 		return;
+ 	/* Attempt to write everything we buffered */
+-	if ((w != r) && (usbd_ep_write_packet(dev, ep,
++	if ((w != r) && swo_decode) {
++		/* write decoded swo packets to the uart port */
++		for (int i = 0; i<FULL_SWO_PACKET; i++) {
++			uint8_t ch=trace_rx_buf[r * FULL_SWO_PACKET + i];
++			if (swo_pkt_len == 0) { /* header */
++				if (ch == 0x01) swo_pkt_len = 1;      /* SWO packet 0x01XX */
++				else if (ch == 0x02) swo_pkt_len = 2; /* SWO packet 0x02XXXX */
++				else if (ch == 0x03) swo_pkt_len = 4; /* SWO packet 0x03XXXXXXXX */
++			} else if (swo_pkt_len <= 4) { /* data */
++				swo_buf[swo_buf_len++]=ch;
++				if (swo_buf_len == CDCACM_PACKET_SIZE) {
++					if ((dev != NULL) && cdcacm_get_config() && cdcacm_get_dtr()) /* silently drop if usb not ready */
++						usbd_ep_write_packet(dev, CDCACM_UART_ENDPOINT, swo_buf, swo_buf_len);
++					swo_buf_len=0;
++				}
++				--swo_pkt_len;
++			} else { /* recover */
++				DEBUG("\nswo recover\n");
++				swo_buf_len=0;
++				swo_pkt_len=0;
++			}
++		}
++		r =(r + 1) % NUM_TRACE_PACKETS;
++	}
++	else if ((w != r) && (usbd_ep_write_packet(dev, ep,
+ 										  &trace_rx_buf[r * FULL_SWO_PACKET],
+ 										  FULL_SWO_PACKET)))
+ 		r =(r + 1) % NUM_TRACE_PACKETS;
+@@ -115,7 +144,7 @@ void SWO_DMA_ISR(void)
+ 	trace_buf_drain(usbdev, 0x85);
+ }
+ 
+-void traceswo_init(uint32_t baudrate)
++void traceswo_init(uint32_t baudrate,  bool traceswo_decode)
+ {
+ 	if (!baudrate)
+ 		baudrate = DEFAULTSPEED;
+@@ -130,4 +159,5 @@ void traceswo_init(uint32_t baudrate)
+ 	nvic_set_priority(SWO_DMA_IRQ, IRQ_PRI_SWO_DMA);
+ 	nvic_enable_irq(SWO_DMA_IRQ);
+ 	traceswo_setspeed(baudrate);
++	swo_decode = traceswo_decode;
+ }
