@@ -34,18 +34,6 @@ index 50c9578..2841f35 100644
  #else
  void traceswo_init(void);
  #endif
-diff --git a/src/platforms/stlink/platform.h b/src/platforms/stlink/platform.h
-index 0ac91bb..78c81ce 100644
---- a/src/platforms/stlink/platform.h
-+++ b/src/platforms/stlink/platform.h
-@@ -71,6 +71,7 @@
- #define PLATFORM_HAS_TRACESWO	1
- #define NUM_TRACE_PACKETS		(128)		/* This is an 8K buffer */
- #define TRACESWO_PROTOCOL		2			/* 1 = Manchester, 2 = NRZ / async */
-+#define TRACESWO_DECODE
- 
- # define SWD_CR   GPIO_CRH(SWDIO_PORT)
- # define SWD_CR_MULT (1 << ((14 - 8) << 2))
 diff --git a/src/platforms/stm32/traceswoasync.c b/src/platforms/stm32/traceswoasync.c
 index 94b07c3..d87a2dd 100644
 --- a/src/platforms/stm32/traceswoasync.c
