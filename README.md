@@ -36,7 +36,7 @@ $ sudo udevadm control --reload-rules
 ```
 Disconnect and re-connect the BMP. Check the device shows up in `/dev/`:
  
- ```
+```
 $ ls -l /dev/ttyBmp*
 lrwxrwxrwx 1 root root 7 Mar 24 11:59 /dev/ttyBmpGdb -> ttyACM0
 lrwxrwxrwx 1 root root 7 Mar 24 11:59 /dev/ttyBmpTarg -> ttyACM1
@@ -49,33 +49,43 @@ As target system we use another Blue Pill. Connect BMP and target like this:
 Black Magic Probe  | Target  | Comment
 --- | --- | ---
 `GND` | `GND` |
-`PB14` | `SWDIO` |
-`PA5` | `SWCLK` |
+`PB14` | `SWDIO` | Serial Wire Debugging Data
+`PA5` | `SWCLK` | Serial Wire Debugging Clock
+`PA10`|`SWO`| Serial Wire Output
 `PA3` | `RXD` | Optional serial port
 `PA2` | `TXD` | Optional serial port
 `3V3` | `3V3` | Careful! Only connect one power source.
 
+If Black Magic Probe and target are both Blue Pills, connecting SWD and SWO looks like this:
+
+![ ](https://raw.githubusercontent.com/koendv/Connecting-Black-Magic-Probe-and-Blue-Pill/master/bmp_bp.svg)
+
 Connect the Black Magic Probe USB to the Raspberry.  Now we are ready to connect to the target system.
 	
-	$ arm-none-eabi-gdb -ex "target extended-remote /dev/ttyBmpGdb"
-	...
+	$ arm-none-eabi-gdb
+	(gdb) target extended-remote /dev/ttyBmpGdb
 	Remote debugging using /dev/ttyBmpGdb
 	(gdb) monitor swdp
 	Target voltage: unknown
 	Available Targets:
 	No. Att Driver
 	 1      STM32F1 medium density M3/M4
-	(gdb)
+	(gdb) attach 1
 
 See the [overview of useful gdb commands](https://github.com/blacksphere/blackmagic/wiki/Useful-GDB-commands) for an  introduction to using the BMP.
 
 ## stm32duino
 
-If you are using the Arduino IDE with the stm32duino add-on:
+If you are using the Arduino IDE with the stm32duino arm processor add-on:
 
 In the Arduino IDE, choose *Tools->Upload Method-> BMP (Black Magic Probe)* to upload firmware using the BMP.  This uploads the firmware using the `arm-none-eabi-gdb` command. The command line options to  `arm-none-eabi-gdb` are in the *tools.bmp_upload* section of `.arduino15/packages/STM32/hardware/stm32/1.8.0/platform.txt`.
 
 The commands `stm32flash`, `dfu-util`, and `arm-none-eabi-gdb` can be found under `~/.arduino15`. ```find ~/.arduino15/ -name arm-none-eabi-gdb -print```
+
+If you are running Arduino on arm processors, useful libraries to complement your Black Magic Probe are:
+
+* [SerialWireOutput](https://github.com/koendv/SerialWireOutput) for fast debugging output to the pc where the debugger is running
+* [STM32duino-Semihosting](https://github.com/koendv/STM32duino-Semihosting) for keyboard input, screen output, and file I/O on the pc where the debugger is running.
 
 The rest of this document documents how to compile the `blackmagic_bluepill.bin` firmware.
 
