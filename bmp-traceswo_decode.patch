@@ -77,7 +77,7 @@ diff -urN blackmagic.ORIG/src/command.c blackmagic/src/command.c
 +			}
 +		}
  	}
-+#if defined(PLATFORM_HAS_DEBUG) && !defined(PC_HOSTED) && defined(ENABLE_DEBUG)
++#if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0) && defined(ENABLE_DEBUG)
 +	if (debug_bmp) {
 +#if TRACESWO_PROTOCOL == 2
 +		gdb_outf("baudrate: %lu ", baudrate);
