@@ -24,7 +24,7 @@ Bus 001 Device 044: ID 1d50:6018 OpenMoko, Inc. Black Magic Debug Probe (Applica
 
 ## Creating Device Files
 
-Download the [udev rules for the BMP](https://github.com/blacksphere/blackmagic/blob/master/driver/99-blackmagic.rules) and install them in 
+If you are running linux, download the [udev rules for the BMP](https://github.com/blacksphere/blackmagic/blob/master/driver/99-blackmagic.rules) and install them in 
  `/etc/udev/rules.d/99-blackmagic.rules`: 
  
 ```
