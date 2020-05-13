@@ -80,8 +80,6 @@ If you are using the Arduino IDE with the stm32duino arm processor add-on:
 
 In the Arduino IDE, choose *Tools->Upload Method-> BMP (Black Magic Probe)* to upload firmware using the BMP.  This uploads the firmware using the `arm-none-eabi-gdb` command. The command line options to  `arm-none-eabi-gdb` are in the *tools.bmp_upload* section of `.arduino15/packages/STM32/hardware/stm32/1.8.0/platform.txt`.
 
-The commands `stm32flash`, `dfu-util`, and `arm-none-eabi-gdb` can be found under `~/.arduino15`. ```find ~/.arduino15/ -name arm-none-eabi-gdb -print```
-
 If you are running Arduino on arm processors, useful libraries to complement your Black Magic Probe are:
 
 * [SerialWireOutput](https://github.com/koendv/SerialWireOutput) for fast debugging output to the pc where the debugger is running
@@ -91,6 +89,8 @@ The rest of this document documents how to compile the `blackmagic_bluepill.bin`
 
 ## Compiling Firmware
 The text assumes a linux with `stm32flash`, `dfu-util`,  `arm-none-eabi-gcc` and `arm-none-eabi-gdb` available.
+
+If you have stm32duino installed, the commands `stm32flash`, `dfu-util`, and `arm-none-eabi-gdb` can be found under `~/.arduino15`. Use ```find ~/.arduino15/ -name arm-none-eabi-gdb -print```
 
 Install [udev rules for the BMP](https://github.com/blacksphere/blackmagic/blob/master/driver/99-blackmagic.rules). Go to `~/.arduino15/packages/STM32/tools/STM32Tools/1.3.2/tools/linux/` and run `./install.sh`
 
