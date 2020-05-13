@@ -1,100 +1,343 @@
-diff --git a/src/command.c b/src/command.c
-index dda2e8c..3609cec 100644
---- a/src/command.c
-+++ b/src/command.c
-@@ -79,7 +79,7 @@ const struct command_s cmd_list[] = {
+diff -urN ./blackmagic.ORIG/src/command.c ./blackmagic/src/command.c
+--- ./blackmagic.ORIG/src/command.c	2020-05-11 17:45:26.050133991 +0200
++++ ./blackmagic/src/command.c	2020-05-12 07:25:26.137751497 +0200
+@@ -79,9 +79,9 @@
  #endif
  #ifdef PLATFORM_HAS_TRACESWO
  #if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
 -	{"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, NRZ mode: (baudrate)" },
-+	{"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, NRZ mode: (baudrate) (decode)" },
++	{"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, NRZ mode: (baudrate) (decode channel ...)" },
  #else
- 	{"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, Manchester mode" },
+-	{"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, Manchester mode" },
++	{"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, Manchester mode: (decode channel ...)" },
  #endif
-@@ -366,7 +366,8 @@ static bool cmd_traceswo(target *t, int argc, const char **argv)
- #if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
- 	if (argc > 1) {
- 		uint32_t baudrate = atoi(argv[1]);
+ #endif
+ 	{"heapinfo", (cmd_handler)cmd_heapinfo, "Set semihosting heapinfo" },
+@@ -363,19 +363,49 @@
+ 	extern char serial_no[9];
+ #endif
+ 	(void)t;
+-#if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
+-	if (argc > 1) {
+-		uint32_t baudrate = atoi(argv[1]);
 -		traceswo_init(baudrate);
-+		bool traceswo_decode = (argc > 2) || !strncmp(argv[2], "decode", strlen(argv[2]));
-+		traceswo_init(baudrate, traceswo_decode);
- 	} else {
- 		gdb_outf("Missing baudrate parameter in command\n");
+-	} else {
+-		gdb_outf("Missing baudrate parameter in command\n");
++#if TRACESWO_PROTOCOL == 2
++	uint32_t baudrate = SWO_DEFAULT_BAUD;
++#endif
++	uint32_t swo_channelmask = 0; /* swo decoding off */
++	uint8_t decode_arg = 1;
++#if TRACESWO_PROTOCOL == 2
++	/* argument: optional baud rate for async mode */
++	if ((argc > 1) && (*argv[1] >= '0') && (*argv[1] <= '9')) {
++		baudrate = atoi(argv[1]);
++		if (baudrate == 0) baudrate = SWO_DEFAULT_BAUD;
++		decode_arg = 2;
  	}
-diff --git a/src/platforms/common/traceswo.h b/src/platforms/common/traceswo.h
-index 50c9578..2841f35 100644
---- a/src/platforms/common/traceswo.h
-+++ b/src/platforms/common/traceswo.h
-@@ -23,7 +23,7 @@
+-#else
+-	(void)argv;
+-	traceswo_init();
+-	if (argc > 1) {
+-		gdb_outf("Superfluous parameter(s) ignored\n");
++#endif
++	/* argument: 'decode' literal */
++	if((argc > decode_arg) &&  !strncmp(argv[decode_arg], "decode", strlen(argv[decode_arg]))) {
++		swo_channelmask = 0xFFFFFFFF; /* decoding all channels */
++		/* arguments: channels to decode */
++		if (argc > decode_arg + 1) {
++			swo_channelmask = 0x0;
++			for (int i = decode_arg+1; i < argc; i++) { /* create bitmask of channels to decode */
++				int channel = atoi(argv[i]);
++				if ((channel >= 0) && (channel <= 31))
++					swo_channelmask |= (uint32_t)0x1 << channel;
++			}
++		}
+ 	}
++#if defined(PLATFORM_HAS_DEBUG) && !defined(PC_HOSTED) && defined(ENABLE_DEBUG)
++	if (debug_bmp) {
++#if TRACESWO_PROTOCOL == 2
++		gdb_outf("baudrate: %lu ", baudrate);
++#endif
++		gdb_outf("channel mask: ");
++		for (int8_t i=31;i>=0;i--) {
++			uint8_t bit = (swo_channelmask >> i) & 0x1;
++			gdb_outf("%u", bit);
++		}
++		gdb_outf("\n");
++	}
++#endif
++#if TRACESWO_PROTOCOL == 2
++	traceswo_init(baudrate, swo_channelmask);
++#else
++	traceswo_init(swo_channelmask);
+ #endif
+ 	gdb_outf("%s:%02X:%02X\n", serial_no, 5, 0x85);
+ 	return true;
+diff -urN ./blackmagic.ORIG/src/platforms/common/traceswo.h ./blackmagic/src/platforms/common/traceswo.h
+--- ./blackmagic.ORIG/src/platforms/common/traceswo.h	2020-05-11 17:45:26.050133991 +0200
++++ ./blackmagic/src/platforms/common/traceswo.h	2020-05-11 17:32:40.775102793 +0200
+@@ -23,11 +23,20 @@
  #include <libopencm3/usb/usbd.h>
  
  #if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
 -void traceswo_init(uint32_t baudrate);
-+void traceswo_init(uint32_t baudrate, bool swo_decode);
++/* Default line rate, used as default for a request without baudrate */
++#define SWO_DEFAULT_BAUD (2250000)
++void traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask);
  #else
- void traceswo_init(void);
+-void traceswo_init(void);
++void traceswo_init(uint32_t swo_chan_bitmask);
  #endif
-diff --git a/src/platforms/stm32/traceswoasync.c b/src/platforms/stm32/traceswoasync.c
-index 94b07c3..d87a2dd 100644
---- a/src/platforms/stm32/traceswoasync.c
-+++ b/src/platforms/stm32/traceswoasync.c
-@@ -50,6 +50,11 @@ static volatile uint32_t r;	/* Packet currently waiting to transmit to USB */
+ 
+ void trace_buf_drain(usbd_device *dev, uint8_t ep);
+ 
++/* set bitmask of swo channels to be decoded */
++void traceswo_setmask(uint32_t mask);
++
++/* print decoded swo packet on usb serial */
++uint16_t traceswo_decode(usbd_device *usbd_dev, uint8_t addr,
++				const void *buf, uint16_t len);
++
+ #endif
+diff -urN ./blackmagic.ORIG/src/platforms/f4discovery/Makefile.inc ./blackmagic/src/platforms/f4discovery/Makefile.inc
+--- ./blackmagic.ORIG/src/platforms/f4discovery/Makefile.inc	2020-05-11 17:45:26.050133991 +0200
++++ ./blackmagic/src/platforms/f4discovery/Makefile.inc	2020-05-12 07:26:09.156682296 +0200
+@@ -16,6 +16,7 @@
+ VPATH += platforms/stm32
+ 
+ SRC += 	cdcacm.c	\
++	traceswodecode.c	\
+ 	traceswo.c	\
+ 	usbuart.c	\
+ 	serialno.c	\
+diff -urN ./blackmagic.ORIG/src/platforms/hydrabus/Makefile.inc ./blackmagic/src/platforms/hydrabus/Makefile.inc
+--- ./blackmagic.ORIG/src/platforms/hydrabus/Makefile.inc	2020-05-11 17:45:26.050133991 +0200
++++ ./blackmagic/src/platforms/hydrabus/Makefile.inc	2020-05-12 07:27:17.695055120 +0200
+@@ -16,6 +16,7 @@
+ VPATH += platforms/stm32
+ 
+ SRC += 	cdcacm.c	\
++	traceswodecode.c	\
+ 	traceswo.c	\
+ 	usbuart.c	\
+ 	serialno.c	\
+diff -urN ./blackmagic.ORIG/src/platforms/native/Makefile.inc ./blackmagic/src/platforms/native/Makefile.inc
+--- ./blackmagic.ORIG/src/platforms/native/Makefile.inc	2020-05-11 17:45:26.060133800 +0200
++++ ./blackmagic/src/platforms/native/Makefile.inc	2020-05-12 07:29:17.072413879 +0200
+@@ -21,6 +21,7 @@
+ VPATH += platforms/stm32
+ 
+ SRC += 	cdcacm.c	\
++	traceswodecode.c	\
+ 	traceswo.c	\
+ 	usbuart.c	\
+ 	serialno.c	\
+diff -urN ./blackmagic.ORIG/src/platforms/stlink/Makefile.inc ./blackmagic/src/platforms/stlink/Makefile.inc
+--- ./blackmagic.ORIG/src/platforms/stlink/Makefile.inc	2020-05-11 17:45:26.060133800 +0200
++++ ./blackmagic/src/platforms/stlink/Makefile.inc	2020-05-11 08:21:15.030672207 +0200
+@@ -32,6 +32,7 @@
+ 	serialno.c	\
+ 	timing.c	\
+ 	timing_stm32.c	\
++	traceswodecode.c	\
+ 	traceswoasync.c	\
+ 	stlink_common.c \
+ 
+diff -urN ./blackmagic.ORIG/src/platforms/stm32/traceswoasync.c ./blackmagic/src/platforms/stm32/traceswoasync.c
+--- ./blackmagic.ORIG/src/platforms/stm32/traceswoasync.c	2020-05-11 17:45:26.070133609 +0200
++++ ./blackmagic/src/platforms/stm32/traceswoasync.c	2020-05-12 07:19:39.288216730 +0200
+@@ -41,8 +41,6 @@
+ 
+ /* For speed this is set to the USB transfer size */
+ #define FULL_SWO_PACKET	(64)
+-/* Default line rate....used as default for a request without baudrate */
+-#define DEFAULTSPEED	(2250000)
+ 
+ static volatile uint32_t w;	/* Packet currently received via UART */
+ static volatile uint32_t r;	/* Packet currently waiting to transmit to USB */
+@@ -50,6 +48,8 @@
  static uint8_t trace_rx_buf[NUM_TRACE_PACKETS * FULL_SWO_PACKET];
  /* Packet pingpong buffer used for receiving packets */
  static uint8_t pingpong_buf[2 * FULL_SWO_PACKET];
-+/* decoding swo packets */
-+static bool swo_decode = false;
-+static uint8_t swo_buf[CDCACM_PACKET_SIZE];
-+static int swo_buf_len = 0;
-+static int swo_pkt_len = 0;
++/* SWO decoding */
++static bool decoding = false;
  
  void trace_buf_drain(usbd_device *dev, uint8_t ep)
  {
-@@ -59,7 +64,31 @@ void trace_buf_drain(usbd_device *dev, uint8_t ep)
+@@ -59,10 +59,20 @@
  	if (__atomic_test_and_set (&inBufDrain, __ATOMIC_RELAXED))
  		return;
  	/* Attempt to write everything we buffered */
 -	if ((w != r) && (usbd_ep_write_packet(dev, ep,
-+	if ((w != r) && swo_decode) {
-+		/* write decoded swo packets to the uart port */
-+		for (int i = 0; i<FULL_SWO_PACKET; i++) {
-+			uint8_t ch=trace_rx_buf[r * FULL_SWO_PACKET + i];
-+			if (swo_pkt_len == 0) { /* header */
-+				if (ch == 0x01) swo_pkt_len = 1;      /* SWO packet 0x01XX */
-+				else if (ch == 0x02) swo_pkt_len = 2; /* SWO packet 0x02XXXX */
-+				else if (ch == 0x03) swo_pkt_len = 4; /* SWO packet 0x03XXXXXXXX */
-+			} else if (swo_pkt_len <= 4) { /* data */
-+				swo_buf[swo_buf_len++]=ch;
-+				if (swo_buf_len == sizeof(swo_buf)) {
-+					if ((dev != NULL) && cdcacm_get_config() && cdcacm_get_dtr()) /* silently drop if usb not ready */
-+						usbd_ep_write_packet(dev, CDCACM_UART_ENDPOINT, swo_buf, swo_buf_len);
-+					swo_buf_len=0;
-+				}
-+				--swo_pkt_len;
-+			} else { /* recover */
-+				DEBUG("\nswo recover\n");
-+				swo_buf_len=0;
-+				swo_pkt_len=0;
-+			}
-+		}
-+		r =(r + 1) % NUM_TRACE_PACKETS;
-+	}
-+	else if ((w != r) && (usbd_ep_write_packet(dev, ep,
++	if (w != r) {
++		uint16_t rc;
++		if (decoding)
++			/* write decoded swo packets to the uart port */
++			rc = traceswo_decode(dev, CDCACM_UART_ENDPOINT,
  										  &trace_rx_buf[r * FULL_SWO_PACKET],
- 										  FULL_SWO_PACKET)))
- 		r =(r + 1) % NUM_TRACE_PACKETS;
-@@ -115,7 +144,7 @@ void SWO_DMA_ISR(void)
+-										  FULL_SWO_PACKET)))
+-		r =(r + 1) % NUM_TRACE_PACKETS;
++										  FULL_SWO_PACKET);
++		else
++			/* write raw swo packets to the trace port */
++			rc = usbd_ep_write_packet(dev, ep,
++										  &trace_rx_buf[r * FULL_SWO_PACKET],
++										  FULL_SWO_PACKET);
++		if (rc) r = (r + 1) % NUM_TRACE_PACKETS;
++	}
+ 	__atomic_clear (&inBufDrain, __ATOMIC_RELAXED);
+ }
+ 
+@@ -115,10 +125,10 @@
  	trace_buf_drain(usbdev, 0x85);
  }
  
 -void traceswo_init(uint32_t baudrate)
-+void traceswo_init(uint32_t baudrate,  bool traceswo_decode)
++void traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask)
  {
  	if (!baudrate)
- 		baudrate = DEFAULTSPEED;
-@@ -130,4 +159,5 @@ void traceswo_init(uint32_t baudrate)
+-		baudrate = DEFAULTSPEED;
++		baudrate = SWO_DEFAULT_BAUD;
+ 
+ 	rcc_periph_clock_enable(SWO_UART_CLK);
+ 	rcc_periph_clock_enable(SWO_DMA_CLK);
+@@ -130,4 +140,6 @@
  	nvic_set_priority(SWO_DMA_IRQ, IRQ_PRI_SWO_DMA);
  	nvic_enable_irq(SWO_DMA_IRQ);
  	traceswo_setspeed(baudrate);
-+	swo_decode = traceswo_decode;
++	traceswo_setmask(swo_chan_bitmask);
++	decoding = (swo_chan_bitmask != 0);
  }
+diff -urN ./blackmagic.ORIG/src/platforms/stm32/traceswo.c ./blackmagic/src/platforms/stm32/traceswo.c
+--- ./blackmagic.ORIG/src/platforms/stm32/traceswo.c	2020-05-11 17:45:26.070133609 +0200
++++ ./blackmagic/src/platforms/stm32/traceswo.c	2020-05-12 07:18:38.139444822 +0200
+@@ -39,7 +39,10 @@
+ #include <libopencm3/stm32/timer.h>
+ #include <libopencm3/stm32/rcc.h>
+ 
+-void traceswo_init(void)
++/* SWO decoding */
++static bool decoding = false;
++
++void traceswo_init(uint32_t swo_chan_bitmask)
+ {
+ 	TRACE_TIM_CLK_EN();
+ 
+@@ -73,6 +76,9 @@
+ 	timer_ic_enable(TRACE_TIM, TIM_IC2);
+ 
+ 	timer_enable_counter(TRACE_TIM);
++
++	traceswo_setmask(swo_chan_bitmask);
++	decoding = (swo_chan_bitmask != 0);
+ }
+ 
+ static uint8_t trace_usb_buf[64];
+@@ -80,7 +86,9 @@
+ 
+ void trace_buf_push(uint8_t *buf, int len)
+ {
+-	if (usbd_ep_write_packet(usbdev, 0x85, buf, len) != len) {
++	if (decoding)
++		traceswo_decode(usbdev, CDCACM_UART_ENDPOINT, buf, len);
++	else if (usbd_ep_write_packet(usbdev, 0x85, buf, len) != len) {
+ 		if (trace_usb_buf_size + len > 64) {
+ 			/* Stall if upstream to too slow. */
+ 			usbd_ep_stall_set(usbdev, 0x85, 1);
+@@ -97,7 +105,10 @@
+ 	if (!trace_usb_buf_size)
+ 		return;
+ 
+-	usbd_ep_write_packet(dev, ep, trace_usb_buf, trace_usb_buf_size);
++	if (decoding)
++		traceswo_decode(dev, CDCACM_UART_ENDPOINT, trace_usb_buf, trace_usb_buf_size);
++	else
++		usbd_ep_write_packet(dev, ep, trace_usb_buf, trace_usb_buf_size);
+ 	trace_usb_buf_size = 0;
+ }
+ 
+diff -urN ./blackmagic.ORIG/src/platforms/stm32/traceswodecode.c ./blackmagic/src/platforms/stm32/traceswodecode.c
+--- ./blackmagic.ORIG/src/platforms/stm32/traceswodecode.c	1970-01-01 01:00:00.000000000 +0100
++++ ./blackmagic/src/platforms/stm32/traceswodecode.c	2020-05-11 09:21:27.673755471 +0200
+@@ -0,0 +1,69 @@
++/*
++ * This file is part of the Black Magic Debug project.
++ *
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.	 If not, see <http://www.gnu.org/licenses/>.
++ */
++
++/* Print decoded swo stream on the usb serial */
++
++#include "general.h"
++#include "cdcacm.h"
++#include "traceswo.h"
++
++/* SWO decoding */
++/* data is static in case swo packet is astride two buffers */
++static uint8_t swo_buf[CDCACM_PACKET_SIZE];
++static int swo_buf_len = 0;
++static uint32_t swo_decode = 0; /* bitmask of channels to print */
++static int swo_pkt_len = 0; /* decoder state */
++static bool swo_print = false;
++
++/* print decoded swo packet on usb serial */
++uint16_t traceswo_decode(usbd_device *usbd_dev, uint8_t addr,
++				const void *buf, uint16_t len) {
++	if (usbd_dev == NULL) return 0;
++	for (int i = 0; i<len; i++) {
++		uint8_t ch=((uint8_t*)buf)[i];
++		if (swo_pkt_len == 0) { /* header */
++			uint32_t channel = (uint32_t)ch >> 3; /* channel number */
++			uint32_t size = ch & 0x7; /* drop channel number */
++			if (size == 0x01) swo_pkt_len = 1;      /* SWO packet 0x01XX */
++			else if (size == 0x02) swo_pkt_len = 2; /* SWO packet 0x02XXXX */
++			else if (size == 0x03) swo_pkt_len = 4; /* SWO packet 0x03XXXXXXXX */
++			swo_print = (swo_pkt_len != 0) && ((swo_decode & (1UL << channel)) != 0UL);
++		} else if (swo_pkt_len <= 4) { /* data */
++			if (swo_print) {
++				swo_buf[swo_buf_len++]=ch;
++				if ((swo_buf_len == sizeof(swo_buf)) || (ch == '\n')) {
++					if (cdcacm_get_config() && cdcacm_get_dtr()) /* silently drop if usb not ready */
++						usbd_ep_write_packet(usbd_dev, addr, swo_buf, swo_buf_len);
++					swo_buf_len=0;
++				}
++			}
++			--swo_pkt_len;
++		} else { /* recover */
++			swo_buf_len=0;
++			swo_pkt_len=0;
++		}
++	}
++	return len;
++}
++
++/* set bitmask of swo channels to be decoded */
++void traceswo_setmask(uint32_t mask) {
++	swo_decode = mask;
++}
++
++/* not truncated */
+diff -urN ./blackmagic.ORIG/src/platforms/swlink/Makefile.inc ./blackmagic/src/platforms/swlink/Makefile.inc
+--- ./blackmagic.ORIG/src/platforms/swlink/Makefile.inc	2020-05-11 17:45:26.070133609 +0200
++++ ./blackmagic/src/platforms/swlink/Makefile.inc	2020-05-11 09:12:50.012352253 +0200
+@@ -25,6 +25,7 @@
+ 	serialno.c	\
+ 	timing.c	\
+ 	timing_stm32.c	\
++	traceswodecode.c	\
+ 	traceswoasync.c	\
+ 	platform_common.c \
+ 

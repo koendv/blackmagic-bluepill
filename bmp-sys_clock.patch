@@ -1,17 +1,18 @@
-diff --git a/src/target/cortexm.c b/src/target/cortexm.c
-index e047def..898fd88 100644
---- a/src/target/cortexm.c
-+++ b/src/target/cortexm.c
-@@ -71,6 +71,8 @@ static target_addr cortexm_check_watch(target *t);
+diff -urN blackmagic.ORIG/src/target/cortexm.c blackmagic/src/target/cortexm.c
+--- blackmagic.ORIG/src/target/cortexm.c	2020-05-11 17:45:26.070133609 +0200
++++ blackmagic/src/target/cortexm.c	2020-05-11 09:08:02.606776451 +0200
+@@ -71,6 +71,10 @@
  
  static int cortexm_hostio_request(target *t);
  
++#if !defined(PC_HOSTED)
 +static uint32_t time0_sec = UINT32_MAX; /* sys_clock time origin */
++#endif
 +
  struct cortexm_priv {
  	ADIv5_AP_t *ap;
  	bool stepping;
-@@ -1206,6 +1208,8 @@ static int cortexm_hostio_request(target *t)
+@@ -1206,6 +1210,8 @@
  		if (syscall == SYS_TIME) { /* SYS_TIME: time in seconds */
  			ret = sec;
  		} else { /* SYS_CLOCK: time in hundredths of seconds */
