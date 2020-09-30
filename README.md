@@ -88,7 +88,7 @@ If you are running Arduino on arm processors, useful libraries to complement you
 The rest of this document documents how to compile the `blackmagic_bluepill.bin` firmware.
 
 ## Compiling Firmware
-The text assumes a linux with `stm32flash`, `dfu-util`,  `arm-none-eabi-gcc` and `arm-none-eabi-gdb` available.
+The text assumes a linux with `stm32flash`, `dfu-util`,  `arm-none-eabi-gcc` and `arm-none-eabi-gdb` available. If you get compilation errors that stdint.h is missing, try installing libnewlib-arm-none-eabi as well.
 
 If you have stm32duino installed, the commands `stm32flash`, `dfu-util`, and `arm-none-eabi-gdb` can be found under `~/.arduino15`. Use ```find ~/.arduino15/ -name arm-none-eabi-gdb -print```
 
